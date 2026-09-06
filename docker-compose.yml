@@ -1,0 +1,46 @@
+# Local dev: Postgres + this API, as their own stack — separate from the
+# Ilkal Threads frontend, which lives in its own repo/folder (Practice-F)
+# and talks to this API purely over HTTP (no shared filesystem/build step).
+# Point the frontend's API_INTERNAL_URL / the browser-facing rewrite in its
+# next.config.ts at wherever this stack ends up running — see README.md
+# for the integration contract (env vars, CORS, cookies).
+#
+# Usage:
+#   cp .env.example .env   # fill in secrets first
+#   docker compose up --build
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ilkal
+      POSTGRES_PASSWORD: ilkal
+      POSTGRES_DB: ilkal_threads
+    ports:
+      - "5432:5432"
+    volumes:
+      - ilkal_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ilkal -d ilkal_threads"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      DATABASE_URL: postgresql://ilkal:ilkal@postgres:5432/ilkal_threads?schema=public
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -c "npx prisma migrate deploy && node dist/server.js"
+
+volumes:
+  ilkal_pgdata:
