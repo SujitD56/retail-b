@@ -33,6 +33,42 @@ Seeding prints a demo admin login (with its MFA otpauth:// URL to scan into
 an authenticator app), a demo customer login, and one login per seeded
 retailer — see the console output after `prisma:migrate` or `db:seed`.
 
+## Deploying to Vercel
+
+Vercel runs Node code as serverless functions, not as one persistent
+process — this app is a normal Express server, so `api/index.js` adapts it
+by exporting the Express `app` directly (an Express app is already a
+`(req, res) => void` handler, which is exactly what Vercel's Node runtime
+expects). `vercel.json` rewrites every path to that one function so
+Express's own router still sees the real request path.
+
+That adapter is a thin shim, not a rewrite, so almost everything behaves
+identically to running `npm start` — **except two things that are
+in-memory and therefore scoped to a single warm serverless instance**
+rather than the one long-lived process they'd have on a normal host:
+
+- **Rate limiting** (`express-rate-limit`'s default in-memory store) — still
+  works, but limits are per-instance, not global, so a burst of traffic
+  spread across multiple cold-started instances can exceed the configured
+  limit in aggregate.
+- **The event bus** (`src/lib/eventBus.ts`) and anything downstream of it
+  (the admin activity feed) — publish/subscribe still works within one warm
+  instance, but isn't guaranteed to span every instance handling traffic.
+
+Neither breaks the app; both are just less precise than on a persistent
+host. If that matters for your use case, a platform built for long-running
+Node processes (Railway, Render, Fly.io) runs this same code with neither
+caveat and no changes.
+
+Required build settings on Vercel (already encoded in `vercel.json` /
+`package.json`, nothing to configure manually):
+- Build command: `npm run vercel-build` (runs `prisma generate` before
+  compiling — required so the generated Prisma Client matches Vercel's
+  runtime, not just whatever platform you ran `npm install` on locally)
+- Output: the `api/` directory's serverless function
+
+See the env var list your deployment needs below.
+
 ## Why "modular monolith, microservice-ready"
 
 Every module under `src/modules/<domain>/` owns its own routes, controller,
