@@ -33,6 +33,19 @@ export function toEntryDTO(entry: EventEntry, rank?: number) {
   };
 }
 
+/** Admin moderation queue row — includes retailer/product names so the queue doesn't need a client-side lookup per entry. */
+export function toModerationEntryDTO(entry: EventEntry & { retailer: { name: string; verified: boolean }; product: { name: string } }) {
+  return {
+    id: entry.id,
+    title: entry.title,
+    imageUrl: entry.imageUrl,
+    retailer: entry.retailer.name,
+    verified: entry.retailer.verified,
+    taggedSaree: entry.product.name,
+    submittedOn: entry.submittedAt.toISOString().slice(0, 10),
+  };
+}
+
 export function toHallOfFameDTO(entry: HallOfFameEntry) {
   return { year: entry.year, entryTitle: entry.entryTitle, retailerId: entry.retailerId, imageUrl: entry.imageUrl, votes: entry.votes };
 }

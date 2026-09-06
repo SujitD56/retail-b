@@ -22,6 +22,13 @@ const envSchema = z.object({
     .string()
     .default("http://localhost:3000")
     .transform((v) => v.split(",").map((s) => s.trim()).filter(Boolean)),
+  // Lets any https://<branch>.vercel.app preview deployment through CORS
+  // in addition to the exact origins above — those subdomains are
+  // unpredictable per-branch/PR, so they can't be listed ahead of time.
+  ALLOW_VERCEL_PREVIEW_ORIGINS: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
 
   AWS_REGION: z.string().default("ap-south-1"),
   AWS_ACCESS_KEY_ID: z.string().min(1, "AWS_ACCESS_KEY_ID is required"),

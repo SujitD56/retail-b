@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { BadRequestError, ConflictError, NotFoundError } from "@/lib/errors.js";
 import { eventBus, DomainEvents } from "@/lib/eventBus.js";
 import * as repo from "./events.repository.js";
-import { toEntryDTO, toEventDTO, toHallOfFameDTO } from "./events.mappers.js";
+import { toEntryDTO, toEventDTO, toHallOfFameDTO, toModerationEntryDTO } from "./events.mappers.js";
 import type { CreateEventInput, SubmitEntryInput } from "./events.schemas.js";
 
 function slugify(title: string) {
@@ -73,7 +73,7 @@ export async function listMyEntries(retailerId: string) {
 
 export async function listForModeration() {
   const entries = await repo.findEntriesForModeration();
-  return entries.map((e) => toEntryDTO(e));
+  return entries.map(toModerationEntryDTO);
 }
 
 export async function moderateEntry(entryId: string, action: "approve" | "reject") {

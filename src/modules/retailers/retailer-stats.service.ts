@@ -65,6 +65,26 @@ export async function getTopPerformingProducts(retailerId: string, limit = 5) {
   }));
 }
 
+export async function getBestCollections(retailerId: string, limit = 5) {
+  const products = await prisma.product.findMany({ where: { retailerId }, select: { id: true, collectionLabel: true, weaveType: true } });
+  const labelByProductId = new Map(products.map((p) => [p.id, p.collectionLabel ?? WEAVE_TYPE_LABEL[p.weaveType]]));
+
+  const items = await prisma.orderItem.findMany({ where: { retailerId }, select: { productId: true, quantity: true, priceAtPurchase: true } });
+  const byCollection = new Map<string, { itemsSold: number; revenue: number }>();
+  for (const item of items) {
+    const label = labelByProductId.get(item.productId) ?? "Uncategorized";
+    const entry = byCollection.get(label) ?? { itemsSold: 0, revenue: 0 };
+    entry.itemsSold += item.quantity;
+    entry.revenue += Number(item.priceAtPurchase) * item.quantity;
+    byCollection.set(label, entry);
+  }
+
+  return [...byCollection.entries()]
+    .map(([name, v]) => ({ name, ...v }))
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, limit);
+}
+
 export async function getRecentVerifiedReviews(retailerId: string, limit = 5) {
   const reviews = await prisma.review.findMany({
     where: { product: { retailerId }, verified: true },

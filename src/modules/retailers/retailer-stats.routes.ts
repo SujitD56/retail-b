@@ -36,6 +36,11 @@ retailerStatsRouter.get(
 );
 
 retailerStatsRouter.get(
+  "/best-collections",
+  asyncHandler(async (req, res) => res.status(200).json({ items: await stats.getBestCollections(await ownRetailerId(req)) })),
+);
+
+retailerStatsRouter.get(
   "/recent-reviews",
   asyncHandler(async (req, res) => res.status(200).json({ items: await stats.getRecentVerifiedReviews(await ownRetailerId(req)) })),
 );

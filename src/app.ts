@@ -30,7 +30,24 @@ export function createApp() {
 
   app.disable("x-powered-by");
   app.use(helmet());
-  app.use(cors({ origin: env.CORS_ORIGINS, credentials: true }));
+  app.use(
+    cors({
+      credentials: true,
+      origin(origin, callback) {
+        // No Origin header (server-to-server calls, curl, Postman) — allow.
+        if (!origin) return callback(null, true);
+        if (env.CORS_ORIGINS.includes(origin)) return callback(null, true);
+        // Vercel preview deployments get an unpredictable *.vercel.app
+        // subdomain per branch/PR — CORS_ORIGINS can't list those ahead of
+        // time, so also allow any subdomain of the project's own Vercel
+        // domain when ALLOW_VERCEL_PREVIEW_ORIGINS is set.
+        if (env.ALLOW_VERCEL_PREVIEW_ORIGINS && /^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin)) {
+          return callback(null, true);
+        }
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
+      },
+    }),
+  );
   app.use(compression());
   app.use(express.json({ limit: "1mb" }));
   app.use(cookieParser());

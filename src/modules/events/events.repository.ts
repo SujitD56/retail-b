@@ -46,7 +46,11 @@ export function findEntriesByRetailer(retailerId: string) {
 }
 
 export function findEntriesForModeration() {
-  return prisma.eventEntry.findMany({ where: { status: "PENDING" }, orderBy: { submittedAt: "asc" } });
+  return prisma.eventEntry.findMany({
+    where: { status: "PENDING" },
+    orderBy: { submittedAt: "asc" },
+    include: { retailer: { select: { name: true, verified: true } }, product: { select: { name: true } } },
+  });
 }
 
 export function moderateEntry(entryId: string, status: "APPROVED" | "REJECTED") {
