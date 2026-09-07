@@ -40,6 +40,16 @@ import { adminRouter } from "@/modules/admin/admin.routes.js";
 export function createApp() {
   const app = express();
 
+  // Vercel (like any reverse proxy) terminates the real client connection
+  // and forwards requests with an `X-Forwarded-For` header. Express ignores
+  // that header by default — a deliberate safe default, since blindly
+  // trusting it would let a client spoof its own IP — so express-rate-limit
+  // refuses to key off it until this is set explicitly. `1` means "trust
+  // exactly one hop in front of us", which is correct for Vercel's setup
+  // (a self-hosted deployment behind your own nginx/ALB would use the same
+  // value; only a chain of multiple proxies needs a higher hop count).
+  app.set("trust proxy", 1);
+
   app.disable("x-powered-by");
   app.use(helmet());
   // Allow every origin. `origin: true` reflects whatever Origin header the
