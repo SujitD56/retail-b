@@ -2,7 +2,9 @@
   "installCommand": "npm ci",
   "buildCommand": "npm run vercel-build",
   "functions": {
-    "api/index.js": {}
+    "api/index.js": {
+      "maxDuration": 30
+    }
   },
   "rewrites": [{ "source": "/(.*)", "destination": "/api" }]
 }
