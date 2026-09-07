@@ -16,9 +16,26 @@
 // rate limiter and the in-memory event bus (and anything downstream of it,
 // like the admin activity feed) are scoped to a single warm instance —
 // they work, but not with the same guarantees as on a persistent process.
-import { createApp } from "../dist/app.js";
-import { registerActivityLogSubscribers } from "../dist/modules/admin/activityLog.subscribers.js";
+// Boot-time errors here (bad/missing env vars, a dependency that throws on
+// import) are the #1 cause of Vercel's opaque "This Serverless Function has
+// crashed" page — the real reason is almost always in the function logs,
+// but only if something logs it clearly before the module throws. Wrap the
+// whole boot sequence so that whatever goes wrong gets one unmistakable
+// console.error with the actual message, then re-throw so Vercel still
+// correctly reports the invocation as failed.
+let app;
+try {
+  console.log("[boot] Ilkal Threads API — starting…");
+  const { createApp } = await import("../dist/app.js");
+  const { registerActivityLogSubscribers } = await import(
+    "../dist/modules/admin/activityLog.subscribers.js"
+  );
+  registerActivityLogSubscribers();
+  app = createApp();
+  console.log("[boot] Ilkal Threads API — ready.");
+} catch (err) {
+  console.error("[boot] Ilkal Threads API — FAILED TO START:", err);
+  throw err;
+}
 
-registerActivityLogSubscribers();
-
-export default createApp();
+export default app;

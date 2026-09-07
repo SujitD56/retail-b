@@ -31,9 +31,23 @@ const envSchema = z.object({
 const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
+  const fieldErrors = parsed.error.flatten().fieldErrors;
   // eslint-disable-next-line no-console
-  console.error("❌ Invalid environment configuration:\n", parsed.error.flatten().fieldErrors);
-  process.exit(1);
+  console.error("❌ Invalid environment configuration:\n", fieldErrors);
+  // Throw rather than `process.exit(1)`: this file is imported at the very
+  // top of the module graph on every entry point, including the Vercel
+  // serverless one (api/index.js -> dist/app.js -> here). `process.exit()`
+  // kills the whole Node isolate outright — on Vercel that surfaces as an
+  // opaque "This Serverless Function has crashed" / FUNCTION_INVOCATION_FAILED
+  // page with no indication of why, because exiting sidesteps the runtime's
+  // normal uncaught-exception reporting. Throwing instead lets Vercel (and
+  // `node dist/server.js` locally) log a real stack trace with this message
+  // — including exactly which env vars are missing/invalid by name — to the
+  // function logs, and still crashes just as hard either way.
+  throw new Error(
+    `Invalid environment configuration — missing/invalid keys: ${Object.keys(fieldErrors).join(", ")}. ` +
+      `Set these in your deploy platform's environment variables (see .env.example).`,
+  );
 }
 
 export const env = parsed.data;

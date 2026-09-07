@@ -18,6 +18,7 @@ type HelmetFactory = (options?: Record<string, unknown>) => HelmetMiddleware;
 const helmet = helmetImport as unknown as HelmetFactory;
 import { env } from "@/config/env.js";
 import { logger } from "@/lib/logger.js";
+import { prisma } from "@/lib/prisma.js";
 import { requestId } from "@/middleware/requestId.js";
 import { apiRateLimiter } from "@/middleware/rateLimit.js";
 import { errorHandler, notFoundHandler } from "@/middleware/errorHandler.js";
@@ -65,8 +66,31 @@ export function createApp() {
   );
   app.use(apiRateLimiter);
 
-  app.get("/healthz", (_req, res) => res.status(200).json({ status: "ok" }));
-  app.get("/readyz", (_req, res) => res.status(200).json({ status: "ready" }));
+  // Liveness: the process is up and able to answer HTTP at all. Deliberately
+  // does not touch the database — this is what should stay green even while
+  // /readyz is failing, so a monitor can tell "crashed" apart from "up but
+  // can't reach Postgres". Logged at info so cold starts and health-checker
+  // traffic are both visible in the function logs, not just errors.
+  app.get("/healthz", (_req, res) => {
+    logger.info("healthz check: ok");
+    res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
+  // Readiness: actually exercises the one dependency most likely to be
+  // misconfigured after a fresh deploy (DATABASE_URL wrong/missing/host
+  // unreachable) so that shows up as a clear "database: unreachable" log
+  // line and a 503, instead of every route silently 500ing on first request
+  // with no obvious cause in the logs.
+  app.get("/readyz", async (_req, res) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      logger.info("readyz check: database reachable");
+      res.status(200).json({ status: "ready", database: "connected" });
+    } catch (err) {
+      logger.error({ err }, "readyz check failed: database unreachable");
+      res.status(503).json({ status: "not_ready", database: "unreachable" });
+    }
+  });
 
   // Every module is mounted under /api/v1 as its own router — this is the
   // seam a future API gateway / per-module deploy would split along. See
