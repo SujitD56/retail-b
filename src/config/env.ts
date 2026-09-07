@@ -18,18 +18,6 @@ const envSchema = z.object({
     .string()
     .regex(/^[0-9a-fA-F]{64}$/, "FIELD_ENCRYPTION_KEY must be a 64-char hex string (32 bytes)"),
 
-  CORS_ORIGINS: z
-    .string()
-    .default("http://localhost:3000")
-    .transform((v) => v.split(",").map((s) => s.trim()).filter(Boolean)),
-  // Lets any https://<branch>.vercel.app preview deployment through CORS
-  // in addition to the exact origins above — those subdomains are
-  // unpredictable per-branch/PR, so they can't be listed ahead of time.
-  ALLOW_VERCEL_PREVIEW_ORIGINS: z
-    .enum(["true", "false"])
-    .default("false")
-    .transform((v) => v === "true"),
-
   AWS_REGION: z.string().default("ap-south-1"),
   AWS_ACCESS_KEY_ID: z.string().min(1, "AWS_ACCESS_KEY_ID is required"),
   AWS_SECRET_ACCESS_KEY: z.string().min(1, "AWS_SECRET_ACCESS_KEY is required"),

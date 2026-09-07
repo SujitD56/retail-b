@@ -1,10 +1,21 @@
 import express from "express";
 import cors from "cors";
-import helmet from "helmet";
+import helmetImport from "helmet";
 import compression from "compression";
 import cookieParser from "cookie-parser";
 import { pinoHttp } from "pino-http";
 import type { IncomingMessage, ServerResponse } from "node:http";
+
+// helmet's CJS/ESM default-export interop resolves inconsistently across
+// build environments — it type-checks fine locally, but some `tsc`
+// invocations (observed on Vercel's build, not local) infer the default
+// import as the whole module namespace instead of the callable factory it
+// actually is at runtime, and fail with "This expression is not callable".
+// Pin down the minimal real shape ourselves and cast through `unknown`
+// instead of trusting whichever way a given environment unwraps `.default`.
+type HelmetMiddleware = (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => void;
+type HelmetFactory = (options?: Record<string, unknown>) => HelmetMiddleware;
+const helmet = helmetImport as unknown as HelmetFactory;
 import { env } from "@/config/env.js";
 import { logger } from "@/lib/logger.js";
 import { requestId } from "@/middleware/requestId.js";
@@ -30,24 +41,17 @@ export function createApp() {
 
   app.disable("x-powered-by");
   app.use(helmet());
-  app.use(
-    cors({
-      credentials: true,
-      origin(origin, callback) {
-        // No Origin header (server-to-server calls, curl, Postman) — allow.
-        if (!origin) return callback(null, true);
-        if (env.CORS_ORIGINS.includes(origin)) return callback(null, true);
-        // Vercel preview deployments get an unpredictable *.vercel.app
-        // subdomain per branch/PR — CORS_ORIGINS can't list those ahead of
-        // time, so also allow any subdomain of the project's own Vercel
-        // domain when ALLOW_VERCEL_PREVIEW_ORIGINS is set.
-        if (env.ALLOW_VERCEL_PREVIEW_ORIGINS && /^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin)) {
-          return callback(null, true);
-        }
-        callback(new Error(`Origin ${origin} not allowed by CORS`));
-      },
-    }),
-  );
+  // Allow every origin. `origin: true` reflects whatever Origin header the
+  // request sent back as Access-Control-Allow-Origin (the CORS spec
+  // forbids a literal `*` alongside `credentials: true`, which this app
+  // needs for its httpOnly session cookies) — so this is the "allow all"
+  // equivalent that still works with cookie-based auth. That means any
+  // site, not just this project's own frontend, can make credentialed
+  // requests here and have a logged-in visitor's cookies sent along. Scope
+  // this back down to an explicit allowlist (see git history for the
+  // previous CORS_ORIGINS/ALLOW_VERCEL_PREVIEW_ORIGINS-based version) once
+  // there's a real frontend domain to lock it to.
+  app.use(cors({ credentials: true, origin: true }));
   app.use(compression());
   app.use(express.json({ limit: "1mb" }));
   app.use(cookieParser());
