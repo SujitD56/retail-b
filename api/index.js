@@ -16,20 +16,26 @@
 // rate limiter and the in-memory event bus (and anything downstream of it,
 // like the admin activity feed) are scoped to a single warm instance —
 // they work, but not with the same guarantees as on a persistent process.
-// Boot-time errors here (bad/missing env vars, a dependency that throws on
-// import) are the #1 cause of Vercel's opaque "This Serverless Function has
-// crashed" page — the real reason is almost always in the function logs,
-// but only if something logs it clearly before the module throws. Wrap the
-// whole boot sequence so that whatever goes wrong gets one unmistakable
-// console.error with the actual message, then re-throw so Vercel still
-// correctly reports the invocation as failed.
+// These MUST be static top-level imports, not `await import(...)`. Vercel's
+// build uses @vercel/nft to statically parse this file and trace its real
+// dependency graph (dist/app.js and everything it needs) — top-level
+// `await` makes that parse fail outright ("Failed to parse ... as script:
+// Unexpected token", confirmed by running `npx @vercel/nft print
+// api/index.js` locally), and when the tracer can't parse the declared
+// entry point, Vercel's builder falls back to independently discovering
+// and compiling src/app.ts on its own instead — using a plain compiler
+// that doesn't understand this project's `@/*` path aliases, which is what
+// previously surfaced as "Cannot find package '@/lib' imported from
+// /var/task/src/app.js" in production. A static import that fails (e.g.
+// config/env.ts's validation throwing on a bad/missing env var) still
+// produces a normal, visible stack trace in Vercel's function logs on its
+// own — nothing here needs to be inside a try/catch for that to work.
+import { createApp } from "../dist/app.js";
+import { registerActivityLogSubscribers } from "../dist/modules/admin/activityLog.subscribers.js";
+
+console.log("[boot] Ilkal Threads API — starting…");
 let app;
 try {
-  console.log("[boot] Ilkal Threads API — starting…");
-  const { createApp } = await import("../dist/app.js");
-  const { registerActivityLogSubscribers } = await import(
-    "../dist/modules/admin/activityLog.subscribers.js"
-  );
   registerActivityLogSubscribers();
   app = createApp();
   console.log("[boot] Ilkal Threads API — ready.");
