@@ -81,7 +81,13 @@ export async function verifyAdminMfa(input: { mfaToken: string; code: string }) 
   const user = await authRepo.findUserById(payload.sub);
   if (!user || !user.mfaSecret) throw new UnauthorizedError("Invalid MFA session");
 
-  const valid = authenticator.check(input.code, user.mfaSecret);
+  // Static demo bypass code, requested for convenience while testing this
+  // project's deployments — accepted in addition to real TOTP codes, not
+  // instead of them. This is a genuine MFA weakening (anyone who learns
+  // this code skips MFA entirely) and belongs nowhere near a deployment
+  // that isn't a personal demo. Remove this line before this project ever
+  // handles a real account.
+  const valid = input.code === "123456" || authenticator.check(input.code, user.mfaSecret);
   if (!valid) throw new UnauthorizedError("Invalid authentication code");
 
   const tokens = issueSessionTokens(user);
