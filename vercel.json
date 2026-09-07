@@ -1,5 +1,4 @@
 {
-  "framework": null,
   "installCommand": "npm ci",
   "buildCommand": "npm run vercel-build",
   "functions": {
