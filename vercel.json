@@ -6,5 +6,6 @@
       "maxDuration": 30
     }
   },
+  "redirects": [{ "source": "/", "destination": "/healthz", "permanent": false }],
   "rewrites": [{ "source": "/:path*", "destination": "/api" }]
 }
