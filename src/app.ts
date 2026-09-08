@@ -31,6 +31,7 @@ import { collectionsRouter } from "@/modules/collections/collections.routes.js";
 import { reviewsRouter } from "@/modules/reviews/reviews.routes.js";
 import { retailersRouter } from "@/modules/retailers/retailers.routes.js";
 import { retailerStatsRouter } from "@/modules/retailers/retailer-stats.routes.js";
+import { retailerCollectionsRouter } from "@/modules/retailers/retailer-collections.routes.js";
 import { cartRouter } from "@/modules/cart/cart.routes.js";
 import { wishlistRouter } from "@/modules/wishlist/wishlist.routes.js";
 import { ordersRouter } from "@/modules/orders/orders.routes.js";
@@ -113,6 +114,7 @@ export function createApp() {
   v1.use("/collections", collectionsRouter);
   v1.use("/reviews", reviewsRouter);
   v1.use("/retailers/stats", retailerStatsRouter); // mounted before /retailers so "stats" isn't parsed as a retailer id
+  v1.use("/retailers/collections", retailerCollectionsRouter); // same reason — before /retailers so "collections" isn't parsed as a retailer id
   v1.use("/retailers", retailersRouter);
   v1.use("/cart", cartRouter);
   v1.use("/wishlist", wishlistRouter);

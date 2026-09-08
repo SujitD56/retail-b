@@ -28,6 +28,11 @@ enum RetailerStatus {
   SUSPENDED @map("suspended")
 }
 
+enum RetailerCollectionStatus {
+  DRAFT  @map("draft")
+  ACTIVE @map("active")
+}
+
 enum WeaveType {
   COTTON_ILKAL       @map("Cotton Ilkal")
   SILK_COTTON        @map("Silk Cotton")
@@ -233,14 +238,38 @@ model Retailer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  products       Product[]
-  reviews        Review[]         @relation("RetailerReviews")
-  eventEntries   EventEntry[]
-  hallOfFame     HallOfFameEntry[]
-  orderItems     OrderItem[]
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products            Product[]
+  reviews             Review[]             @relation("RetailerReviews")
+  eventEntries        EventEntry[]
+  hallOfFame          HallOfFameEntry[]
+  orderItems          OrderItem[]
+  retailerCollections RetailerCollection[]
 
   @@map("retailers")
+}
+
+// A retailer's own named groupings of their products (e.g. "Festive Edit"),
+// managed from the Retailer Portal — distinct from the global, admin-curated
+// `Collection` model below (editorial marketplace-wide groupings shown on
+// the customer site). `productIds` intentionally stores plain product ids
+// rather than a join table — this is a small, retailer-owned list re-ordered/
+// edited as a whole from one settings screen, not a relation queried from
+// the product side, so a join table would be pure overhead here.
+model RetailerCollection {
+  id            String                    @id @default(cuid())
+  retailerId    String
+  name          String
+  description   String                    @db.Text
+  status        RetailerCollectionStatus  @default(DRAFT)
+  coverImageUrl String?
+  productIds    String[]                  @default([])
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+
+  retailer Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+
+  @@map("retailer_collections")
 }
 
 // ---------- Catalog ----------
