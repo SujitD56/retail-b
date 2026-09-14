@@ -56,6 +56,28 @@ export function toAdminProductRow(product: ProductWithImages & { retailer: { nam
   };
 }
 
+/** Full editable shape for the retailer's own edit form — unlike toProductDTO (the public contract), this includes fields a shopper never needs but the owner does: collectionLabel and the raw lifecycle status. */
+export function toRetailerProductDetail(product: ProductWithImages) {
+  return {
+    id: product.id,
+    name: product.name,
+    description: product.description,
+    weaveType: WEAVE_TYPE_LABEL[product.weaveType],
+    collectionLabel: product.collectionLabel ?? undefined,
+    tags: product.tags,
+    color: product.color,
+    borderType: product.borderType,
+    material: product.material,
+    lengthWidth: product.lengthWidth,
+    price: Number(product.price),
+    compareAtPrice: product.compareAtPrice ? Number(product.compareAtPrice) : undefined,
+    stockCount: product.stockCount,
+    images: product.images.map((img) => ({ url: img.url, alt: img.alt })),
+    status: product.status,
+  };
+}
+export type RetailerProductDetail = ReturnType<typeof toRetailerProductDetail>;
+
 export function toRetailerCatalogRow(product: ProductWithImages, ordersCount: number) {
   return {
     id: product.id,

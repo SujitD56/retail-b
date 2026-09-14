@@ -424,6 +424,14 @@ model Order {
   status             OrderStatus   @default(PROCESSING)
   paymentMethod      PaymentMethod
   paymentStatus      PaymentStatus @default(PENDING)
+  // Razorpay order id, created server-side at checkout for every non-COD
+  // order — never set from client input. Null for COD orders, which have
+  // no gateway leg at all.
+  razorpayOrderId    String?       @unique
+  // Set only after a signature-verified payment (via the verify-payment
+  // endpoint or the webhook) — this is the actual evidence money moved,
+  // not just a status flag the client can assert.
+  razorpayPaymentId  String?       @unique
   subtotal           Decimal       @db.Decimal(12, 2)
   shipping           Decimal       @db.Decimal(12, 2)
   tax                Decimal       @db.Decimal(12, 2)

@@ -5,8 +5,13 @@ import { getRetailerIdForUser } from "@/modules/retailers/retailers.service.js";
 import * as service from "./orders.service.js";
 
 export const checkout = asyncHandler(async (req: Request, res: Response) => {
-  const order = await service.checkout(req.auth ? { userId: req.auth.userId, role: req.auth.role } : null, req.body);
-  res.status(201).json({ order });
+  const result = await service.checkout(req.auth ? { userId: req.auth.userId, role: req.auth.role } : null, req.body);
+  res.status(201).json(result);
+});
+
+export const verifyPayment = asyncHandler(async (req: Request, res: Response) => {
+  const order = await service.verifyPayment(req.params.orderNumber as string, { userId: req.auth?.userId, role: req.auth?.role }, req.body);
+  res.status(200).json({ order });
 });
 
 export const getOne = asyncHandler(async (req: Request, res: Response) => {

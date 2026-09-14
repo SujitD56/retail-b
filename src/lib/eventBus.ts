@@ -54,6 +54,7 @@ export const eventBus: IEventBus = new InMemoryEventBus();
 // Central registry of event names so producers/consumers can't typo a topic.
 export const DomainEvents = {
   OrderPlaced: "order.placed",
+  OrderPaid: "order.paid",
   RetailerApproved: "retailer.approved",
   RetailerRejected: "retailer.rejected",
   RetailerRegistered: "retailer.registered",

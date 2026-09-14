@@ -37,6 +37,7 @@ import { wishlistRouter } from "@/modules/wishlist/wishlist.routes.js";
 import { ordersRouter } from "@/modules/orders/orders.routes.js";
 import { eventsRouter } from "@/modules/events/events.routes.js";
 import { adminRouter } from "@/modules/admin/admin.routes.js";
+import { webhooksRouter } from "@/modules/webhooks/webhooks.routes.js";
 
 export function createApp() {
   const app = express();
@@ -65,7 +66,19 @@ export function createApp() {
   // there's a real frontend domain to lock it to.
   app.use(cors({ credentials: true, origin: true }));
   app.use(compression());
-  app.use(express.json({ limit: "1mb" }));
+  app.use(
+    express.json({
+      limit: "1mb",
+      // Stash the exact raw bytes alongside the parsed body. Razorpay signs
+      // the webhook payload as raw bytes (see webhooks.controller.ts) — a
+      // JSON.stringify(req.body) re-serialization is not guaranteed to
+      // byte-for-byte match what Razorpay sent (key order, whitespace),
+      // which would make correct payloads fail verification.
+      verify: (req, _res, buf) => {
+        (req as express.Request).rawBody = buf;
+      },
+    }),
+  );
   app.use(cookieParser());
   app.use(requestId);
   app.use(
@@ -121,6 +134,7 @@ export function createApp() {
   v1.use("/orders", ordersRouter);
   v1.use("/events", eventsRouter);
   v1.use("/admin", adminRouter);
+  v1.use("/webhooks", webhooksRouter);
   app.use("/api/v1", v1);
 
   app.use(notFoundHandler);

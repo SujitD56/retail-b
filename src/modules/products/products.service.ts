@@ -4,7 +4,7 @@ import { NotFoundError } from "@/lib/errors.js";
 import { eventBus, DomainEvents } from "@/lib/eventBus.js";
 import { WEAVE_TYPE_FROM_LABEL } from "@/lib/enumLabels.js";
 import * as repo from "./products.repository.js";
-import { toAdminProductRow, toProductDTO, toRetailerCatalogRow } from "./products.mappers.js";
+import { toAdminProductRow, toProductDTO, toRetailerCatalogRow, toRetailerProductDetail } from "./products.mappers.js";
 import type { CreateProductInput, UpdateProductInput } from "./products.schemas.js";
 
 function slugify(name: string) {
@@ -101,6 +101,13 @@ export async function createForRetailer(retailerId: string, input: CreateProduct
   });
   eventBus.publish(DomainEvents.ProductCreated, { productId: product.id, retailerId });
   return toProductDTO(product);
+}
+
+/** Backs the retailer's own edit form — needs collectionLabel/status alongside everything toProductDTO already exposes publicly. */
+export async function getForRetailer(retailerId: string, productId: string) {
+  const owned = await repo.findOwnedById(productId, retailerId);
+  if (!owned) throw new NotFoundError("Product not found");
+  return toRetailerProductDetail(owned);
 }
 
 export async function updateForRetailer(retailerId: string, productId: string, input: UpdateProductInput) {

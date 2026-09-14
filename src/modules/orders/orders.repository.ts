@@ -7,6 +7,10 @@ export function findByOrderNumber(orderNumber: string) {
   return prisma.order.findUnique({ where: { orderNumber }, include: withRelations });
 }
 
+export function findByRazorpayOrderId(razorpayOrderId: string) {
+  return prisma.order.findUnique({ where: { razorpayOrderId }, include: withRelations });
+}
+
 export function findByUser(userId: string) {
   return prisma.order.findMany({ where: { userId }, include: withRelations, orderBy: { placedAt: "desc" } });
 }
@@ -33,6 +37,7 @@ interface CreateOrderData {
   userId?: string;
   guestEmail?: string;
   paymentMethod: Prisma.OrderCreateInput["paymentMethod"];
+  razorpayOrderId?: string;
   subtotal: number;
   shipping: number;
   tax: number;
@@ -50,6 +55,7 @@ export function create(data: CreateOrderData) {
       userId: data.userId,
       guestEmail: data.guestEmail,
       paymentMethod: data.paymentMethod,
+      razorpayOrderId: data.razorpayOrderId,
       subtotal: data.subtotal,
       shipping: data.shipping,
       tax: data.tax,
@@ -61,6 +67,19 @@ export function create(data: CreateOrderData) {
     },
     include: withRelations,
   });
+}
+
+/** Idempotent: safe to call twice for the same payment (e.g. the client's verify-payment call racing the webhook for the same order). */
+export function markPaid(orderId: string, razorpayPaymentId: string) {
+  return prisma.order.update({
+    where: { id: orderId },
+    data: { paymentStatus: "PAID", razorpayPaymentId },
+    include: withRelations,
+  });
+}
+
+export function markPaymentFailed(orderId: string) {
+  return prisma.order.update({ where: { id: orderId }, data: { paymentStatus: "FAILED" }, include: withRelations });
 }
 
 export function decrementStock(productId: string, quantity: number) {

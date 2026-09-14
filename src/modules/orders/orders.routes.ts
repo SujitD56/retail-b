@@ -2,11 +2,17 @@ import { Router } from "express";
 import { optionalAuth, requireAuth, requireRole } from "@/middleware/auth.js";
 import { validate } from "@/middleware/validate.js";
 import * as controller from "./orders.controller.js";
-import { checkoutSchema, updateOrderStatusSchema } from "./orders.schemas.js";
+import { checkoutSchema, updateOrderStatusSchema, verifyPaymentSchema } from "./orders.schemas.js";
 
 export const ordersRouter = Router();
 
 ordersRouter.post("/checkout", optionalAuth, validate(checkoutSchema), controller.checkout);
+// Hit by the frontend right after Razorpay Checkout.js reports success.
+// optionalAuth (not requireAuth) because guest checkout has no session —
+// ownership still holds for a logged-in user's own order, and either way
+// the actual security boundary is the signature check inside the service,
+// not who's asking.
+ordersRouter.post("/:orderNumber/verify-payment", optionalAuth, validate(verifyPaymentSchema), controller.verifyPayment);
 
 ordersRouter.get("/mine", requireAuth, controller.listMine);
 ordersRouter.get("/retailer/mine", requireAuth, requireRole("RETAILER"), controller.listForRetailer);
