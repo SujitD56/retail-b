@@ -10,6 +10,7 @@ export const productsRouter = Router();
 // Retailer self-service — mounted before the public `/:id`-shaped routes so
 // "mine" isn't swallowed as a param.
 productsRouter.get("/mine", requireAuth, requireRole("RETAILER"), controller.listMine);
+productsRouter.get("/mine/:id", requireAuth, requireRole("RETAILER"), controller.getMine);
 productsRouter.post("/mine", requireAuth, requireRole("RETAILER"), validate(createProductSchema), controller.createMine);
 productsRouter.patch("/mine/:id", requireAuth, requireRole("RETAILER"), validate(updateProductSchema), controller.updateMine);
 productsRouter.delete("/mine/:id", requireAuth, requireRole("RETAILER"), controller.deleteMine);

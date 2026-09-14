@@ -58,6 +58,12 @@ export const createMine = asyncHandler(async (req: Request, res: Response) => {
   res.status(201).json({ product });
 });
 
+export const getMine = asyncHandler(async (req: Request, res: Response) => {
+  const retailerId = await requireOwnRetailerId(req);
+  const product = await service.getForRetailer(retailerId, req.params.id as string);
+  res.status(200).json({ product });
+});
+
 export const updateMine = asyncHandler(async (req: Request, res: Response) => {
   const retailerId = await requireOwnRetailerId(req);
   const product = await service.updateForRetailer(retailerId, req.params.id as string, req.body);
