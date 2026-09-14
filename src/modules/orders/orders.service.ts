@@ -10,7 +10,7 @@ import * as productsService from "@/modules/products/products.service.js";
 import * as repo from "./orders.repository.js";
 import { toAdminOrderRow, toOrderDTO, toRetailerOrderRow } from "./orders.mappers.js";
 import type { CheckoutInput, VerifyPaymentInput } from "./orders.schemas.js";
-import type { Order, OrderItem, OrderTrackingStep } from "@prisma/client";
+import type { Order, OrderItem, OrderTrackingStep, Prisma } from "@prisma/client";
 
 const SHIPPING_PER_RETAILER = 150;
 const EXPRESS_SURCHARGE = 250;
@@ -22,6 +22,22 @@ const TRACKING_POSITION = { PLACED: 0, PROCESSING: 1, SHIPPED: 2, IN_TRANSIT: 3,
 
 function generateOrderNumber() {
   return `ORD-${crypto.randomInt(10000, 99999)}`;
+}
+
+/** Everything the frontend needs to open (or reopen) Razorpay Checkout.js for an order — null once there's nothing left to collect (COD, or already paid/failed-and-not-retryable-here). `keyId` is the public half of the credential pair and is meant to ship to the client; the secret never appears in any response. */
+function buildPaymentSession(order: { razorpayOrderId: string | null; paymentStatus: string; total: Prisma.Decimal | number }) {
+  // Not just PENDING: a FAILED attempt (declined card, a signature that
+  // didn't check out) should still be retryable against the same Razorpay
+  // order — Razorpay accepts multiple payment attempts against one order
+  // id as long as it hasn't actually been paid. Only PAID closes this out.
+  if (!order.razorpayOrderId || order.paymentStatus === "PAID") return null;
+  return {
+    provider: "razorpay" as const,
+    keyId: env.RAZORPAY_KEY_ID,
+    orderId: order.razorpayOrderId,
+    amount: Math.round(Number(order.total) * 100),
+    currency: "INR",
+  };
 }
 
 export async function checkout(requester: { userId?: string; role?: string } | null, input: CheckoutInput) {
@@ -111,16 +127,7 @@ export async function checkout(requester: { userId?: string; role?: string } | n
 
   eventBus.publish(DomainEvents.OrderPlaced, { orderId: order.id, orderNumber: order.orderNumber, total });
 
-  return {
-    order: toOrderDTO(order),
-    // Everything the frontend needs to open Razorpay Checkout.js — null for
-    // COD, which has nothing to collect online. `keyId` is the public half
-    // of the credential pair and is meant to ship to the client; the secret
-    // never appears in any response.
-    payment: razorpayOrderId
-      ? { provider: "razorpay" as const, keyId: env.RAZORPAY_KEY_ID, orderId: razorpayOrderId, amount: Math.round(total * 100), currency: "INR" }
-      : null,
-  };
+  return { order: toOrderDTO(order), payment: buildPaymentSession(order) };
 }
 
 type OrderWithRelations = Order & { items: OrderItem[]; tracking: OrderTrackingStep[] };
@@ -135,7 +142,11 @@ export async function getByOrderNumber(orderNumber: string, requester: { userId?
   const order = await repo.findByOrderNumber(orderNumber);
   if (!order) throw new NotFoundError("Order not found");
   assertCanAccessOrder(order, requester);
-  return toOrderDTO(order);
+  // `payment` is non-null here whenever there's still something to collect —
+  // this is what lets the order page reopen Checkout.js for a customer who
+  // closed the widget (or lost connection) before finishing the first time,
+  // without re-running checkout or double-decrementing stock.
+  return { order: toOrderDTO(order), payment: buildPaymentSession(order) };
 }
 
 /** Verifies a Razorpay Checkout.js success callback and, only if the signature checks out, marks the order paid. This is the sole client-facing path that can flip paymentStatus to PAID. */
@@ -156,7 +167,7 @@ export async function verifyPayment(
   if (order.razorpayOrderId !== payload.razorpay_order_id) {
     throw new BadRequestError("This payment doesn't belong to this order");
   }
-  if (order.paymentStatus === "PAID") return toOrderDTO(order); // idempotent — client retry, or a race with the webhook
+  if (order.paymentStatus === "PAID") return { order: toOrderDTO(order), payment: null }; // idempotent — client retry, or a race with the webhook
 
   const valid = verifyPaymentSignature({
     orderId: payload.razorpay_order_id,
@@ -170,7 +181,9 @@ export async function verifyPayment(
 
   const updated = await repo.markPaid(order.id, payload.razorpay_payment_id);
   eventBus.publish(DomainEvents.OrderPaid, { orderId: order.id, orderNumber: order.orderNumber, total: Number(order.total) });
-  return toOrderDTO(updated);
+  // payment is always null here — buildPaymentSession() returns null once
+  // PAID, and `updated` is freshly that.
+  return { order: toOrderDTO(updated), payment: buildPaymentSession(updated) };
 }
 
 /** Server-to-server counterpart of verifyPayment(), driven by the Razorpay webhook (webhooks.controller.ts) rather than a client callback. This is the authoritative path — it doesn't depend on the customer's browser making it back to the success handler. */

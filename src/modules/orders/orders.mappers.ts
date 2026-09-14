@@ -12,6 +12,10 @@ export function toOrderDTO(order: OrderWithRelations) {
       .sort((a, b) => a.id.localeCompare(b.id))
       .map((i) => ({ productId: i.productId, quantity: i.quantity, priceAtPurchase: Number(i.priceAtPurchase) })),
     status: ORDER_STATUS_LABEL[order.status],
+    // Single-word enums are just .toLowerCase()'d — see enumLabels.ts's
+    // header comment; matches what checkoutSchema already accepts as input.
+    paymentMethod: order.paymentMethod.toLowerCase(),
+    paymentStatus: order.paymentStatus.toLowerCase(),
     placedAt: order.placedAt.toISOString(),
     estimatedDelivery: order.estimatedDelivery.toISOString().slice(0, 10),
     subtotal: Number(order.subtotal),
