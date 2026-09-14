@@ -21,3 +21,13 @@ export type CheckoutInput = z.infer<typeof checkoutSchema>;
 export const updateOrderStatusSchema = z.object({
   status: z.enum(["processing", "shipped", "in transit", "delivered", "cancelled"]),
 });
+
+// Fields Razorpay Checkout.js hands back to the client on success — passed
+// straight through to the server so it can verify the signature itself.
+// Trusting these without verification is exactly the bug this replaces.
+export const verifyPaymentSchema = z.object({
+  razorpay_order_id: z.string().min(1),
+  razorpay_payment_id: z.string().min(1),
+  razorpay_signature: z.string().min(1),
+});
+export type VerifyPaymentInput = z.infer<typeof verifyPaymentSchema>;

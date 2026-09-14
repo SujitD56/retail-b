@@ -1,12 +1,16 @@
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma.js";
+import { env } from "@/config/env.js";
+import { logger } from "@/lib/logger.js";
 import { BadRequestError, ForbiddenError, NotFoundError } from "@/lib/errors.js";
 import { eventBus, DomainEvents } from "@/lib/eventBus.js";
 import { ORDER_STATUS_FROM_LABEL } from "@/lib/enumLabels.js";
+import { razorpay, verifyPaymentSignature } from "@/lib/razorpay.js";
 import * as productsService from "@/modules/products/products.service.js";
 import * as repo from "./orders.repository.js";
 import { toAdminOrderRow, toOrderDTO, toRetailerOrderRow } from "./orders.mappers.js";
-import type { CheckoutInput } from "./orders.schemas.js";
+import type { CheckoutInput, VerifyPaymentInput } from "./orders.schemas.js";
+import type { Order, OrderItem, OrderTrackingStep } from "@prisma/client";
 
 const SHIPPING_PER_RETAILER = 150;
 const EXPRESS_SURCHARGE = 250;
@@ -47,15 +51,37 @@ export async function checkout(requester: { userId?: string; role?: string } | n
 
   const now = new Date();
   const estimatedDelivery = new Date(now.getTime() + (input.deliveryMethod === "express" ? 3 : 7) * 24 * 60 * 60 * 1000);
+  const orderNumber = generateOrderNumber();
+
+  // For every online method, open a Razorpay order BEFORE touching our own
+  // DB. If this call fails, checkout fails cleanly with nothing committed —
+  // no stock decremented, no dangling order — instead of leaving a PENDING
+  // order in our DB that Razorpay never heard of. COD never talks to
+  // Razorpay at all; there's no online payment leg to verify.
+  let razorpayOrderId: string | undefined;
+  if (input.paymentMethod !== "cod") {
+    const rpOrder = await razorpay.orders.create({
+      amount: Math.round(total * 100), // paise
+      currency: "INR",
+      receipt: orderNumber,
+    });
+    razorpayOrderId = rpOrder.id;
+  }
 
   const order = await prisma.$transaction(async (tx) => {
     const created = await tx.order.create({
       data: {
-        orderNumber: generateOrderNumber(),
+        orderNumber,
         userId: requester?.userId,
         guestEmail: requester?.userId ? undefined : input.guestEmail,
         paymentMethod: input.paymentMethod.toUpperCase() as never,
-        paymentStatus: input.paymentMethod === "cod" ? "PENDING" : "PAID",
+        // Always PENDING at creation, online methods included — this only
+        // ever flips to PAID from verifyPayment()/markPaidFromWebhook()
+        // below, once Razorpay has actually confirmed a payment. Never set
+        // it from the checkout request itself; the client hasn't paid
+        // anything yet at this point, it's just told us how it intends to.
+        paymentStatus: "PENDING",
+        razorpayOrderId,
         subtotal,
         shipping,
         tax,
@@ -84,16 +110,89 @@ export async function checkout(requester: { userId?: string; role?: string } | n
   });
 
   eventBus.publish(DomainEvents.OrderPlaced, { orderId: order.id, orderNumber: order.orderNumber, total });
-  return toOrderDTO(order);
+
+  return {
+    order: toOrderDTO(order),
+    // Everything the frontend needs to open Razorpay Checkout.js — null for
+    // COD, which has nothing to collect online. `keyId` is the public half
+    // of the credential pair and is meant to ship to the client; the secret
+    // never appears in any response.
+    payment: razorpayOrderId
+      ? { provider: "razorpay" as const, keyId: env.RAZORPAY_KEY_ID, orderId: razorpayOrderId, amount: Math.round(total * 100), currency: "INR" }
+      : null,
+  };
+}
+
+type OrderWithRelations = Order & { items: OrderItem[]; tracking: OrderTrackingStep[] };
+
+function assertCanAccessOrder(order: OrderWithRelations, requester: { userId?: string; role?: string }) {
+  if (requester.role !== "ADMIN" && order.userId && order.userId !== requester.userId) {
+    throw new ForbiddenError("You don't have access to this order");
+  }
 }
 
 export async function getByOrderNumber(orderNumber: string, requester: { userId?: string; role?: string }) {
   const order = await repo.findByOrderNumber(orderNumber);
   if (!order) throw new NotFoundError("Order not found");
-  if (requester.role !== "ADMIN" && order.userId && order.userId !== requester.userId) {
-    throw new ForbiddenError("You don't have access to this order");
-  }
+  assertCanAccessOrder(order, requester);
   return toOrderDTO(order);
+}
+
+/** Verifies a Razorpay Checkout.js success callback and, only if the signature checks out, marks the order paid. This is the sole client-facing path that can flip paymentStatus to PAID. */
+export async function verifyPayment(
+  orderNumber: string,
+  requester: { userId?: string; role?: string },
+  payload: VerifyPaymentInput,
+) {
+  const order = await repo.findByOrderNumber(orderNumber);
+  if (!order) throw new NotFoundError("Order not found");
+  assertCanAccessOrder(order, requester);
+
+  if (!order.razorpayOrderId) throw new BadRequestError("This order has no online payment to verify");
+  // The signature alone doesn't name an order — it's only valid for the
+  // exact order_id it was computed over. Pinning to the id we stored at
+  // checkout (not just "any valid signature") stops a signature for one
+  // order being replayed against a different one.
+  if (order.razorpayOrderId !== payload.razorpay_order_id) {
+    throw new BadRequestError("This payment doesn't belong to this order");
+  }
+  if (order.paymentStatus === "PAID") return toOrderDTO(order); // idempotent — client retry, or a race with the webhook
+
+  const valid = verifyPaymentSignature({
+    orderId: payload.razorpay_order_id,
+    paymentId: payload.razorpay_payment_id,
+    signature: payload.razorpay_signature,
+  });
+  if (!valid) {
+    await repo.markPaymentFailed(order.id);
+    throw new BadRequestError("Payment verification failed");
+  }
+
+  const updated = await repo.markPaid(order.id, payload.razorpay_payment_id);
+  eventBus.publish(DomainEvents.OrderPaid, { orderId: order.id, orderNumber: order.orderNumber, total: Number(order.total) });
+  return toOrderDTO(updated);
+}
+
+/** Server-to-server counterpart of verifyPayment(), driven by the Razorpay webhook (webhooks.controller.ts) rather than a client callback. This is the authoritative path — it doesn't depend on the customer's browser making it back to the success handler. */
+export async function markPaidFromWebhook(razorpayOrderId: string, razorpayPaymentId: string) {
+  const order = await repo.findByRazorpayOrderId(razorpayOrderId);
+  if (!order) {
+    logger.warn({ razorpayOrderId }, "razorpay webhook: payment.captured for an unknown order");
+    return;
+  }
+  if (order.paymentStatus === "PAID") return; // idempotent — Razorpay retries webhook delivery
+  await repo.markPaid(order.id, razorpayPaymentId);
+  eventBus.publish(DomainEvents.OrderPaid, { orderId: order.id, orderNumber: order.orderNumber, total: Number(order.total) });
+}
+
+export async function markFailedFromWebhook(razorpayOrderId: string) {
+  const order = await repo.findByRazorpayOrderId(razorpayOrderId);
+  if (!order) {
+    logger.warn({ razorpayOrderId }, "razorpay webhook: payment.failed for an unknown order");
+    return;
+  }
+  if (order.paymentStatus === "PAID") return; // never downgrade a confirmed payment on a late/duplicate failure event
+  await repo.markPaymentFailed(order.id);
 }
 
 export async function listMine(userId: string) {

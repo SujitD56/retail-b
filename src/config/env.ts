@@ -26,6 +26,18 @@ const envSchema = z.object({
 
   SEED_ADMIN_EMAIL: z.string().email().default("admin@ilkalthreads.com"),
   SEED_ADMIN_PASSWORD: z.string().min(8).default("ChangeMe123!"),
+
+  // Razorpay — online checkout (upi/card/netbanking). Key ID is safe to send
+  // to the client (it's how Razorpay Checkout.js identifies the merchant);
+  // the secret never leaves the server and is only used to create orders
+  // server-side and verify payment signatures.
+  RAZORPAY_KEY_ID: z.string().min(1, "RAZORPAY_KEY_ID is required"),
+  RAZORPAY_KEY_SECRET: z.string().min(1, "RAZORPAY_KEY_SECRET is required"),
+  // Signing secret configured on the Razorpay webhook (dashboard > Webhooks),
+  // separate from the key secret above. Optional so the app still boots
+  // before the webhook is set up — but /api/v1/webhooks/razorpay refuses all
+  // events until it's set, since an unverified webhook is worse than none.
+  RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
