@@ -149,6 +149,22 @@ export async function getByOrderNumber(orderNumber: string, requester: { userId?
   return { order: toOrderDTO(order), payment: buildPaymentSession(order) };
 }
 
+/** Lets a customer cancel their own order, but only while it's still PROCESSING — once a retailer has shipped it there's a physical parcel in transit, so cancellation has to go through support instead of this self-serve path. Idempotent for an order that's already cancelled. */
+export async function cancelMine(orderNumber: string, requester: { userId?: string; role?: string }) {
+  const order = await repo.findByOrderNumber(orderNumber);
+  if (!order) throw new NotFoundError("Order not found");
+  assertCanAccessOrder(order, requester);
+
+  if (order.status === "CANCELLED") return { order: toOrderDTO(order) };
+  if (order.status !== "PROCESSING") {
+    throw new BadRequestError("This order has already shipped and can no longer be cancelled");
+  }
+
+  await prisma.order.update({ where: { id: order.id }, data: { status: "CANCELLED" } });
+  const updated = await repo.findByOrderNumber(orderNumber);
+  return { order: toOrderDTO(updated!) };
+}
+
 /** Verifies a Razorpay Checkout.js success callback and, only if the signature checks out, marks the order paid. This is the sole client-facing path that can flip paymentStatus to PAID. */
 export async function verifyPayment(
   orderNumber: string,

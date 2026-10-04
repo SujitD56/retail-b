@@ -27,6 +27,12 @@ export const listMine = asyncHandler(async (req: Request, res: Response) => {
   res.status(200).json({ items: await service.listMine(req.auth.userId) });
 });
 
+export const cancelMine = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.auth) throw new UnauthorizedError();
+  const result = await service.cancelMine(req.params.orderNumber as string, { userId: req.auth.userId, role: req.auth.role });
+  res.status(200).json(result);
+});
+
 export const listForRetailer = asyncHandler(async (req: Request, res: Response) => {
   if (!req.auth) throw new UnauthorizedError();
   const retailerId = await getRetailerIdForUser(req.auth.userId);

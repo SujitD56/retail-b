@@ -15,6 +15,7 @@ ordersRouter.post("/checkout", optionalAuth, validate(checkoutSchema), controlle
 ordersRouter.post("/:orderNumber/verify-payment", optionalAuth, validate(verifyPaymentSchema), controller.verifyPayment);
 
 ordersRouter.get("/mine", requireAuth, controller.listMine);
+ordersRouter.patch("/:orderNumber/cancel", requireAuth, controller.cancelMine);
 ordersRouter.get("/retailer/mine", requireAuth, requireRole("RETAILER"), controller.listForRetailer);
 ordersRouter.get("/admin", requireAuth, requireRole("ADMIN"), controller.listForAdmin);
 ordersRouter.patch("/admin/:id/status", requireAuth, requireRole("ADMIN"), validate(updateOrderStatusSchema), controller.updateStatusAdmin);
