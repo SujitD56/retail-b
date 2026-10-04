@@ -169,3 +169,4 @@ npm install && npm run dev   # :3000
 - **Event entry analytics** (views/shares/comments) aren't modeled — those
   need a real event-tracking pipeline, not fabricated numbers, so only
   vote counts and rank (both real) are exposed.
+# retail-b
