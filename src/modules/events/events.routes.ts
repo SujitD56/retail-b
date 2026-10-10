@@ -9,6 +9,8 @@ export const eventsRouter = Router();
 eventsRouter.get("/hall-of-fame", controller.hallOfFame);
 
 eventsRouter.get("/retailer/mine", requireAuth, requireRole("RETAILER"), controller.listMyEntries);
+eventsRouter.get("/retailer/mine/stats", requireAuth, requireRole("RETAILER"), controller.getMyEventStats);
+eventsRouter.get("/retailer/mine/entries/:entryId/analytics", requireAuth, requireRole("RETAILER"), controller.getMyEntryAnalytics);
 eventsRouter.get("/admin/moderation", requireAuth, requireRole("ADMIN"), controller.listForModeration);
 eventsRouter.patch(
   "/admin/entries/:entryId/moderate",
@@ -26,3 +28,4 @@ eventsRouter.get("/", controller.list);
 eventsRouter.get("/slug/:slug", controller.getBySlug);
 eventsRouter.get("/:id/entries", controller.getEntries);
 eventsRouter.post("/:id/entries", requireAuth, requireRole("RETAILER"), validate(submitEntrySchema), controller.submitEntry);
+eventsRouter.get("/:id/analytics", requireAuth, requireRole("ADMIN"), controller.getEventAnalytics);

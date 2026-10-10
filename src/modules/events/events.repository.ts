@@ -71,3 +71,67 @@ export function hasVoted(entryId: string, userId: string) {
 export function findHallOfFame() {
   return prisma.hallOfFameEntry.findMany({ orderBy: { year: "desc" } });
 }
+
+export function sumEntryVotes(eventId: string) {
+  return prisma.eventEntry.aggregate({ where: { eventId }, _sum: { votes: true } });
+}
+
+export async function countUniqueVoters(eventId: string) {
+  const rows = await prisma.eventVote.findMany({ where: { entry: { eventId } }, distinct: ["userId"], select: { userId: true } });
+  return rows.length;
+}
+
+function dayStart(daysAgo: number) {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - daysAgo);
+  return d;
+}
+
+/** Votes cast per day over the trailing `days` window — used for the admin event analytics chart. */
+export async function getVotingTrend(eventId: string, days = 7) {
+  const results = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const start = dayStart(i);
+    const end = dayStart(i - 1);
+    const count = await prisma.eventVote.count({ where: { entry: { eventId }, createdAt: { gte: start, lt: end } } });
+    results.push({ day: start.toLocaleDateString("en-US", { month: "short", day: "numeric" }), votes: count });
+  }
+  return results;
+}
+
+/** Same as getVotingTrend but scoped to one entry — powers a retailer's per-entry vote chart. */
+export async function getVotingTrendForEntry(entryId: string, days = 7) {
+  const results = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const start = dayStart(i);
+    const end = dayStart(i - 1);
+    const count = await prisma.eventVote.count({ where: { entryId, createdAt: { gte: start, lt: end } } });
+    results.push({ day: start.toLocaleDateString("en-US", { month: "short", day: "numeric" }), votes: count });
+  }
+  return results;
+}
+
+export async function retailerParticipation(eventId: string) {
+  const grouped = await prisma.eventEntry.groupBy({ by: ["retailerId"], where: { eventId }, _count: { _all: true }, _sum: { votes: true } });
+  const retailers = await prisma.retailer.findMany({
+    where: { id: { in: grouped.map((g) => g.retailerId) } },
+    select: { id: true, name: true, location: true },
+  });
+  return grouped.map((g) => {
+    const retailer = retailers.find((r) => r.id === g.retailerId);
+    return { retailerId: g.retailerId, name: retailer?.name ?? "Unknown", location: retailer?.location ?? "", entries: g._count._all, votes: g._sum.votes ?? 0 };
+  });
+}
+
+export function findEntriesByRetailerWithEvent(retailerId: string) {
+  return prisma.eventEntry.findMany({ where: { retailerId }, include: { event: true }, orderBy: { submittedAt: "desc" } });
+}
+
+export function findHallOfFameByRetailer(retailerId: string) {
+  return prisma.hallOfFameEntry.findMany({ where: { retailerId }, include: { event: true }, orderBy: { year: "desc" } });
+}
+
+export function findUpcomingEvents(limit = 1) {
+  return prisma.marketplaceEvent.findMany({ where: { status: "UPCOMING" }, orderBy: { startsAt: "asc" }, take: limit });
+}

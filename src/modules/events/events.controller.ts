@@ -65,3 +65,17 @@ export const vote = asyncHandler(async (req: Request, res: Response) => {
 export const hallOfFame = asyncHandler(async (_req: Request, res: Response) => {
   res.status(200).json({ items: await service.getHallOfFame() });
 });
+
+export const getEventAnalytics = asyncHandler(async (req: Request, res: Response) => {
+  res.status(200).json(await service.getEventAnalytics(req.params.id as string));
+});
+
+export const getMyEventStats = asyncHandler(async (req: Request, res: Response) => {
+  const retailerId = await requireOwnRetailerId(req);
+  res.status(200).json(await service.getMyEventStats(retailerId));
+});
+
+export const getMyEntryAnalytics = asyncHandler(async (req: Request, res: Response) => {
+  const retailerId = await requireOwnRetailerId(req);
+  res.status(200).json(await service.getMyEntryAnalytics(retailerId, req.params.entryId as string));
+});
