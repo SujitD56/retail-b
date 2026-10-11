@@ -17,7 +17,7 @@ export function findByUser(userId: string) {
 
 export function findManyAdmin(opts?: { skip?: number; take?: number }) {
   return prisma.order.findMany({
-    include: { items: { include: { retailer: { select: { name: true } } } }, user: { select: { name: true } } },
+    include: { items: { include: { retailer: { select: { name: true } } } }, user: { select: { name: true, email: true } } },
     orderBy: { placedAt: "desc" },
     ...opts,
   });
@@ -103,4 +103,20 @@ export async function updateStatus(orderId: string, status: OrderStatus, uptoPos
 
 export function findById(id: string) {
   return prisma.order.findUnique({ where: { id }, include: withRelations });
+}
+
+export function findByIdAdmin(id: string) {
+  return prisma.order.findUnique({
+    where: { id },
+    include: {
+      items: {
+        include: {
+          product: { select: { name: true, slug: true, images: { take: 1, orderBy: { position: "asc" } } } },
+          retailer: { select: { name: true, slug: true } },
+        },
+      },
+      tracking: { orderBy: { position: "asc" } },
+      user: { select: { name: true, email: true, phone: true } },
+    },
+  });
 }

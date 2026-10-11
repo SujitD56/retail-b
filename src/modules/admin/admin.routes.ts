@@ -13,3 +13,4 @@ adminRouter.get("/activity", asyncHandler(async (req, res) => {
   const limit = req.query.limit ? Number(req.query.limit) : 10;
   res.status(200).json({ items: await service.getActivityLog(limit) });
 }));
+adminRouter.get("/customers", asyncHandler(async (_req, res) => res.status(200).json(await service.listCustomers())));

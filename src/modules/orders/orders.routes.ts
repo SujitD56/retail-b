@@ -19,6 +19,7 @@ ordersRouter.patch("/:orderNumber/cancel", requireAuth, controller.cancelMine);
 ordersRouter.get("/retailer/mine", requireAuth, requireRole("RETAILER"), controller.listForRetailer);
 ordersRouter.get("/admin", requireAuth, requireRole("ADMIN"), controller.listForAdmin);
 ordersRouter.patch("/admin/:id/status", requireAuth, requireRole("ADMIN"), validate(updateOrderStatusSchema), controller.updateStatusAdmin);
+ordersRouter.get("/admin/:id", requireAuth, requireRole("ADMIN"), controller.getOneAdmin);
 
 ordersRouter.get("/:orderNumber", optionalAuth, controller.getOne);
 ordersRouter.get("/:orderNumber/invoice", optionalAuth, controller.getInvoice);

@@ -9,7 +9,7 @@ import { ORDER_STATUS_FROM_LABEL } from "@/lib/enumLabels.js";
 import { razorpay, verifyPaymentSignature } from "@/lib/razorpay.js";
 import * as productsService from "@/modules/products/products.service.js";
 import * as repo from "./orders.repository.js";
-import { toAdminOrderRow, toOrderDTO, toRetailerOrderRow } from "./orders.mappers.js";
+import { toAdminOrderDetail, toAdminOrderRow, toOrderDTO, toRetailerOrderRow } from "./orders.mappers.js";
 import { renderInvoicePdf } from "./invoice.js";
 import type { CheckoutInput, VerifyPaymentInput } from "./orders.schemas.js";
 import type { Order, OrderItem, OrderTrackingStep } from "@prisma/client";
@@ -301,4 +301,10 @@ export async function updateStatusAdmin(orderId: string, statusLabel: string) {
 
   const updated = await repo.findById(orderId);
   return toOrderDTO(updated!);
+}
+
+export async function getByIdAdmin(id: string) {
+  const order = await repo.findByIdAdmin(id);
+  if (!order) throw new NotFoundError("Order not found");
+  return toAdminOrderDetail(order);
 }

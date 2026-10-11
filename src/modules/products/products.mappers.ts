@@ -43,6 +43,7 @@ export function deriveDisplayStatus(product: Pick<Product, "status" | "stockCoun
 export function toAdminProductRow(product: ProductWithImages & { retailer: { name: string } }, ordersCount: number) {
   return {
     id: product.id,
+    slug: product.slug,
     name: product.name,
     sku: `ILK-PR-${product.id.slice(-4).toUpperCase()}`,
     retailer: product.retailer.name,

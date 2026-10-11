@@ -140,3 +140,31 @@ export async function getActivityLog(limit = 10) {
   const entries = await prisma.activityLogEntry.findMany({ orderBy: { createdAt: "desc" }, take: limit });
   return entries.map((e) => ({ type: e.type, message: e.message, time: timeAgo(e.createdAt) }));
 }
+
+export async function listCustomers() {
+  const users = await prisma.user.findMany({
+    where: { role: "CUSTOMER" },
+    orderBy: { createdAt: "desc" },
+    include: { orders: { select: { total: true } } },
+  });
+
+  const thisMonth = startOfMonth(0);
+  const items = users.map((u) => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    phone: u.phone ?? "",
+    joinedDate: u.createdAt.toISOString(),
+    ordersCount: u.orders.length,
+    totalSpent: u.orders.reduce((sum, o) => sum + Number(o.total), 0),
+  }));
+
+  return {
+    items,
+    summary: {
+      all: items.length,
+      withOrders: items.filter((c) => c.ordersCount > 0).length,
+      newThisMonth: users.filter((u) => u.createdAt >= thisMonth).length,
+    },
+  };
+}

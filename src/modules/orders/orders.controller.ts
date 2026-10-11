@@ -58,3 +58,7 @@ export const updateStatusAdmin = asyncHandler(async (req: Request, res: Response
   const order = await service.updateStatusAdmin(req.params.id as string, req.body.status);
   res.status(200).json({ order });
 });
+
+export const getOneAdmin = asyncHandler(async (req: Request, res: Response) => {
+  res.status(200).json(await service.getByIdAdmin(req.params.id as string));
+});

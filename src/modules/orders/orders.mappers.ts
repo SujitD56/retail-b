@@ -44,19 +44,68 @@ const ADMIN_FULFILLMENT_STATUS = {
 } as const;
 
 export function toAdminOrderRow(
-  order: Order & { items: (OrderItem & { retailer: { name: string } })[]; user: { name: string } | null },
+  order: Order & { items: (OrderItem & { retailer: { name: string } })[]; user: { name: string; email: string } | null },
 ) {
   const retailerNames = [...new Set(order.items.map((i) => i.retailer.name))];
   return {
     id: order.id,
     orderId: `#${order.orderNumber}`,
     customer: order.user?.name ?? order.guestEmail ?? "Guest",
+    customerEmail: order.user?.email ?? order.guestEmail ?? "",
     retailer: retailerNames.length === 1 ? retailerNames[0] : `${retailerNames.length} retailers`,
     itemCount: order.items.reduce((sum, i) => sum + i.quantity, 0),
     total: Number(order.total),
     paymentStatus: ADMIN_PAYMENT_STATUS[order.paymentStatus],
     fulfillmentStatus: order.status === "CANCELLED" ? "Cancelled" : ADMIN_FULFILLMENT_STATUS[order.status],
     orderDate: order.placedAt.toISOString().slice(0, 10),
+  };
+}
+
+/** Full order detail for the admin order-detail screen — includes product name/image and retailer name per line item, which the lightweight `toOrderDTO`/`toAdminOrderRow` deliberately leave out. */
+export function toAdminOrderDetail(
+  order: Order & {
+    items: (OrderItem & {
+      product: { name: string; slug: string; images: { url: string; alt: string }[] };
+      retailer: { name: string; slug: string };
+    })[];
+    tracking: OrderTrackingStep[];
+    user: { name: string; email: string; phone: string | null } | null;
+  },
+) {
+  return {
+    id: order.id,
+    orderNumber: order.orderNumber,
+    status: ORDER_STATUS_LABEL[order.status],
+    paymentMethod: order.paymentMethod.toLowerCase(),
+    paymentStatus: order.paymentStatus.toLowerCase(),
+    placedAt: order.placedAt.toISOString(),
+    estimatedDelivery: order.estimatedDelivery.toISOString().slice(0, 10),
+    subtotal: Number(order.subtotal),
+    shipping: Number(order.shipping),
+    tax: Number(order.tax),
+    total: Number(order.total),
+    shippingAddress: order.shippingAddress,
+    customer: order.user
+      ? { name: order.user.name, email: order.user.email, phone: order.user.phone ?? "" }
+      : { name: order.guestEmail ?? "Guest", email: order.guestEmail ?? "", phone: "" },
+    items: order.items.map((i) => ({
+      productId: i.productId,
+      productSlug: i.product.slug,
+      productName: i.product.name,
+      imageUrl: i.product.images[0]?.url ?? "",
+      retailerName: i.retailer.name,
+      retailerSlug: i.retailer.slug,
+      quantity: i.quantity,
+      priceAtPurchase: Number(i.priceAtPurchase),
+    })),
+    tracking: order.tracking
+      .sort((a, b) => a.position - b.position)
+      .map((t) => ({
+        status: TRACKING_STATUS_LABEL[t.status],
+        label: t.label,
+        timestamp: t.timestamp?.toISOString() ?? "",
+        complete: t.complete,
+      })),
   };
 }
 

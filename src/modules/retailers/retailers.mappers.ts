@@ -33,6 +33,7 @@ const ADMIN_STATUS_LABEL = { APPROVED: "Verified", PENDING: "Pending", REJECTED:
 export function toAdminRetailerRow(retailer: Retailer, productsListed: number, ordersServiced: number) {
   return {
     id: retailer.id,
+    slug: retailer.slug,
     name: retailer.name,
     weaverId: `#ILK-RT-${retailer.id.slice(-4).toUpperCase()}`,
     status: ADMIN_STATUS_LABEL[retailer.status],
