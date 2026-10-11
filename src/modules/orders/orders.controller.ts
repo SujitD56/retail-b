@@ -22,6 +22,14 @@ export const getOne = asyncHandler(async (req: Request, res: Response) => {
   res.status(200).json(result);
 });
 
+export const getInvoice = asyncHandler(async (req: Request, res: Response) => {
+  const orderNumber = req.params.orderNumber as string;
+  const pdf = await service.getInvoicePdf(orderNumber, { userId: req.auth?.userId, role: req.auth?.role });
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="invoice-${orderNumber}.pdf"`);
+  res.status(200).send(pdf);
+});
+
 export const listMine = asyncHandler(async (req: Request, res: Response) => {
   if (!req.auth) throw new UnauthorizedError();
   res.status(200).json({ items: await service.listMine(req.auth.userId) });

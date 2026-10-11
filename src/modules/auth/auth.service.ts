@@ -15,7 +15,15 @@ function toPublicUser(user: User) {
   // Prisma returns the enum identifier ("CUSTOMER"); the frontend `User.role`
   // contract is the lowercase string ("customer") — see lib/enumLabels.ts
   // for why this needs an explicit conversion rather than relying on @map.
-  return { id: user.id, name: user.name, email: user.email, role: user.role.toLowerCase(), avatarUrl: user.avatarUrl ?? undefined };
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    phone: user.phone ?? undefined,
+    role: user.role.toLowerCase(),
+    avatarUrl: user.avatarUrl ?? undefined,
+    memberSince: user.createdAt.toISOString(),
+  };
 }
 
 function issueSessionTokens(user: User) {
@@ -29,12 +37,23 @@ async function persistRefreshToken(userId: string, refreshToken: string) {
   await authRepo.storeRefreshToken(userId, refreshToken, expiresAt);
 }
 
-export async function signup(input: { fullName: string; email: string; password: string }) {
+export async function signup(input: { fullName: string; email: string; phone?: string; password: string }) {
   const existing = await authRepo.findUserByEmail(input.email);
   if (existing) throw new ConflictError("An account with this email already exists");
 
+  if (input.phone) {
+    const existingPhone = await authRepo.findUserByPhone(input.phone);
+    if (existingPhone) throw new ConflictError("An account with this phone number already exists");
+  }
+
   const passwordHash = await hashPassword(input.password);
-  const user = await authRepo.createUser({ name: input.fullName, email: input.email, passwordHash, role: "CUSTOMER" });
+  const user = await authRepo.createUser({
+    name: input.fullName,
+    email: input.email,
+    phone: input.phone || undefined,
+    passwordHash,
+    role: "CUSTOMER",
+  });
 
   eventBus.publish(DomainEvents.UserRegistered, { userId: user.id, role: user.role });
 
@@ -101,7 +120,7 @@ export async function setupAdminMfa(userId: string) {
   if (!user) throw new UnauthorizedError();
   const secret = authenticator.generateSecret();
   await authRepo.setMfaSecret(userId, secret);
-  const otpauthUrl = authenticator.keyuri(user.email, "Ilkal Threads Admin", secret);
+  const otpauthUrl = authenticator.keyuri(user.email, "Kaushaya Admin", secret);
   const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
   return { secret, otpauthUrl, qrCodeDataUrl };
 }
@@ -172,6 +191,11 @@ export async function createSessionForUserId(userId: string) {
   const tokens = issueSessionTokens(user);
   await persistRefreshToken(user.id, tokens.refreshToken);
   return { user: toPublicUser(user), ...tokens };
+}
+
+export async function updateProfile(userId: string, input: { fullName: string; phone?: string }) {
+  const user = await authRepo.updateProfile(userId, { name: input.fullName, phone: input.phone || undefined });
+  return toPublicUser(user);
 }
 
 export async function getUserName(userId: string): Promise<string> {

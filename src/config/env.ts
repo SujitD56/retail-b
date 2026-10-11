@@ -24,7 +24,7 @@ const envSchema = z.object({
   S3_BUCKET_NAME: z.string().min(1, "S3_BUCKET_NAME is required"),
   S3_PUBLIC_BASE_URL: z.string().optional(),
 
-  SEED_ADMIN_EMAIL: z.string().email().default("admin@ilkalthreads.com"),
+  SEED_ADMIN_EMAIL: z.string().email().default("admin@kaushaya.com"),
   SEED_ADMIN_PASSWORD: z.string().min(8).default("ChangeMe123!"),
 
   // Razorpay — online checkout (upi/card/netbanking). Key ID is safe to send

@@ -47,6 +47,9 @@ export async function register(input: RegisterRetailerInput) {
   const existingUser = await prisma.user.findUnique({ where: { email: input.email.toLowerCase() } });
   if (existingUser) throw new ConflictError("An account with this email already exists");
 
+  const existingPhone = await prisma.user.findFirst({ where: { phone: input.mobile } });
+  if (existingPhone) throw new ConflictError("An account with this phone number already exists");
+
   let slug = slugify(input.storeName);
   const slugTaken = await prisma.retailer.findUnique({ where: { slug } });
   if (slugTaken) slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`;

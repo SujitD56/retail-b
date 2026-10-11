@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma.js";
 import { env } from "@/config/env.js";
 import { logger } from "@/lib/logger.js";
@@ -9,8 +10,9 @@ import { razorpay, verifyPaymentSignature } from "@/lib/razorpay.js";
 import * as productsService from "@/modules/products/products.service.js";
 import * as repo from "./orders.repository.js";
 import { toAdminOrderRow, toOrderDTO, toRetailerOrderRow } from "./orders.mappers.js";
+import { renderInvoicePdf } from "./invoice.js";
 import type { CheckoutInput, VerifyPaymentInput } from "./orders.schemas.js";
-import type { Order, OrderItem, OrderTrackingStep, Prisma } from "@prisma/client";
+import type { Order, OrderItem, OrderTrackingStep } from "@prisma/client";
 
 const SHIPPING_PER_RETAILER = 150;
 const EXPRESS_SURCHARGE = 250;
@@ -24,13 +26,35 @@ function generateOrderNumber() {
   return `ORD-${crypto.randomInt(10000, 99999)}`;
 }
 
+/**
+ * Neon's pooled connection occasionally drops mid-transaction (P2028,
+ * "Transaction not found... obtained before disconnecting") — most often
+ * right after the database wakes up from being idle. Since nothing commits
+ * unless the whole interactive transaction succeeds, it's always safe to
+ * retry it verbatim rather than fail a customer's checkout over a
+ * transient pool hiccup.
+ */
+async function withTransientRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const isTransientTxError = err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2028";
+      if (!isTransientTxError || attempt === attempts) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 300 * attempt));
+    }
+  }
+  throw new Error("unreachable");
+}
+
 /** Everything the frontend needs to open (or reopen) Razorpay Checkout.js for an order — null once there's nothing left to collect (COD, or already paid/failed-and-not-retryable-here). `keyId` is the public half of the credential pair and is meant to ship to the client; the secret never appears in any response. */
-function buildPaymentSession(order: { razorpayOrderId: string | null; paymentStatus: string; total: Prisma.Decimal | number }) {
+function buildPaymentSession(order: { razorpayOrderId: string | null; paymentStatus: string; status: string; total: Prisma.Decimal | number }) {
   // Not just PENDING: a FAILED attempt (declined card, a signature that
   // didn't check out) should still be retryable against the same Razorpay
   // order — Razorpay accepts multiple payment attempts against one order
   // id as long as it hasn't actually been paid. Only PAID closes this out.
-  if (!order.razorpayOrderId || order.paymentStatus === "PAID") return null;
+  // A CANCELLED order is also closed out — there's nothing left to collect.
+  if (!order.razorpayOrderId || order.paymentStatus === "PAID" || order.status === "CANCELLED") return null;
   return {
     provider: "razorpay" as const,
     keyId: env.RAZORPAY_KEY_ID,
@@ -60,7 +84,15 @@ export async function checkout(requester: { userId?: string; role?: string } | n
   });
 
   const subtotal = lineItems.reduce((sum, i) => sum + i.priceAtPurchase * i.quantity, 0);
-  const retailerCount = new Set(lineItems.map((i) => i.retailerId)).size;
+  const orderRetailerIds = [...new Set(lineItems.map((i) => i.retailerId))];
+  const retailerCount = orderRetailerIds.length;
+
+  // "Shipped from <town>" only names a single town when the whole order
+  // ships from one retailer — a mixed-retailer order has no single
+  // "shipped from" location, so it gets a generic label instead of picking
+  // one retailer's town arbitrarily.
+  const shippingRetailers = await prisma.retailer.findMany({ where: { id: { in: orderRetailerIds } }, select: { location: true } });
+  const shippedLabel = shippingRetailers.length === 1 ? `Shipped from ${shippingRetailers[0]!.location}` : "Shipped";
   const shipping = retailerCount * SHIPPING_PER_RETAILER + (input.deliveryMethod === "express" ? EXPRESS_SURCHARGE : 0);
   const tax = Math.round(subtotal * TAX_RATE);
   const total = subtotal + shipping + tax;
@@ -84,7 +116,8 @@ export async function checkout(requester: { userId?: string; role?: string } | n
     razorpayOrderId = rpOrder.id;
   }
 
-  const order = await prisma.$transaction(async (tx) => {
+  const order = await withTransientRetry(() =>
+    prisma.$transaction(async (tx) => {
     const created = await tx.order.create({
       data: {
         orderNumber,
@@ -109,7 +142,7 @@ export async function checkout(requester: { userId?: string; role?: string } | n
           create: [
             { status: "PLACED", label: "Order Placed", timestamp: now, complete: true, position: 0 },
             { status: "PROCESSING", label: "Handloom Verified & Processing", timestamp: now, complete: true, position: 1 },
-            { status: "SHIPPED", label: "Shipped from Ilkal", timestamp: null, complete: false, position: 2 },
+            { status: "SHIPPED", label: shippedLabel, timestamp: null, complete: false, position: 2 },
             { status: "IN_TRANSIT", label: "In Transit", timestamp: null, complete: false, position: 3 },
             { status: "DELIVERED", label: "Delivered", timestamp: null, complete: false, position: 4 },
           ],
@@ -123,7 +156,8 @@ export async function checkout(requester: { userId?: string; role?: string } | n
     }
 
     return created;
-  });
+    }),
+  );
 
   eventBus.publish(DomainEvents.OrderPlaced, { orderId: order.id, orderNumber: order.orderNumber, total });
 
@@ -147,6 +181,18 @@ export async function getByOrderNumber(orderNumber: string, requester: { userId?
   // closed the widget (or lost connection) before finishing the first time,
   // without re-running checkout or double-decrementing stock.
   return { order: toOrderDTO(order), payment: buildPaymentSession(order) };
+}
+
+export async function getInvoicePdf(orderNumber: string, requester: { userId?: string; role?: string }) {
+  const order = await repo.findByOrderNumber(orderNumber);
+  if (!order) throw new NotFoundError("Order not found");
+  assertCanAccessOrder(order, requester);
+
+  const itemsWithNames = await prisma.orderItem.findMany({
+    where: { orderId: order.id },
+    include: { product: { select: { name: true } }, retailer: { select: { name: true } } },
+  });
+  return renderInvoicePdf({ ...order, items: itemsWithNames });
 }
 
 /** Lets a customer cancel their own order, but only while it's still PROCESSING — once a retailer has shipped it there's a physical parcel in transit, so cancellation has to go through support instead of this self-serve path. Idempotent for an order that's already cancelled. */

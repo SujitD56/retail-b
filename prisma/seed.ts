@@ -37,7 +37,7 @@ async function hash(pw: string) {
 }
 
 async function main() {
-  console.log("🌱 Seeding Ilkal Threads database…");
+  console.log("🌱 Seeding Kaushaya database…");
 
   // ---------- Categories ----------
   const categories = [
@@ -54,7 +54,7 @@ async function main() {
   console.log(`  ✓ ${categories.length} categories`);
 
   // ---------- Admin ----------
-  const adminEmail = process.env.SEED_ADMIN_EMAIL ?? "admin@ilkalthreads.com";
+  const adminEmail = process.env.SEED_ADMIN_EMAIL ?? "admin@kaushaya.com";
   const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "ChangeMe123!";
   const mfaSecret = authenticator.generateSecret();
   await prisma.user.upsert({
@@ -63,7 +63,7 @@ async function main() {
     create: { name: "Platform Admin", email: adminEmail, passwordHash: await hash(adminPassword), role: "ADMIN", mfaSecret, mfaEnabled: true },
   });
   console.log(`  ✓ admin account: ${adminEmail} / ${adminPassword}`);
-  console.log(`    MFA otpauth URL (scan into an authenticator app): ${authenticator.keyuri(adminEmail, "Ilkal Threads Admin", mfaSecret)}`);
+  console.log(`    MFA otpauth URL (scan into an authenticator app): ${authenticator.keyuri(adminEmail, "Kaushaya Admin", mfaSecret)}`);
 
   // ---------- Demo customer ----------
   const customer = await prisma.user.upsert({

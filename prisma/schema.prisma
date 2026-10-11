@@ -564,6 +564,21 @@ model HallOfFameEntry {
   @@map("hall_of_fame_entries")
 }
 
+// ---------- Support ----------
+
+model SupportTicket {
+  id        String   @id @default(cuid())
+  orderId   String?
+  userId    String?
+  email     String?
+  message   String   @db.Text
+  status    String   @default("open") // open | resolved — simple enough not to warrant an enum yet
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@map("support_tickets")
+}
+
 // ---------- Admin activity feed ----------
 
 // Populated by an event-bus subscriber (modules/admin/activityLog.subscribers.ts)

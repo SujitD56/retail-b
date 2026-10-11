@@ -3,10 +3,12 @@ import { validate } from "@/middleware/validate.js";
 import { requireAuth, requireRole } from "@/middleware/auth.js";
 import { authRateLimiter } from "@/middleware/rateLimit.js";
 import * as controller from "./auth.controller.js";
-import { adminMfaVerifySchema, forgotPasswordSchema, loginSchema, resetPasswordSchema, signupSchema } from "./auth.schemas.js";
+import { adminMfaVerifySchema, forgotPasswordSchema, loginSchema, resetPasswordSchema, signupSchema, updateProfileSchema } from "./auth.schemas.js";
 
 export const authRouter = Router();
 
+authRouter.get("/check-email", authRateLimiter, controller.checkEmail);
+authRouter.get("/check-phone", authRateLimiter, controller.checkPhone);
 authRouter.post("/signup", authRateLimiter, validate(signupSchema), controller.signup);
 authRouter.post("/login", authRateLimiter, validate(loginSchema), controller.loginCustomer);
 authRouter.post("/retailer/login", authRateLimiter, validate(loginSchema), controller.loginRetailer);
@@ -19,6 +21,7 @@ authRouter.post("/admin/mfa/confirm", requireAuth, requireRole("ADMIN"), control
 authRouter.post("/refresh", controller.refresh);
 authRouter.post("/logout", controller.logout);
 authRouter.get("/me", requireAuth, controller.me);
+authRouter.patch("/me", requireAuth, validate(updateProfileSchema), controller.updateMe);
 
 authRouter.post("/forgot-password", authRateLimiter, validate(forgotPasswordSchema), controller.forgotPassword);
 authRouter.post("/reset-password", authRateLimiter, validate(resetPasswordSchema), controller.resetPassword);

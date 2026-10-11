@@ -5,8 +5,13 @@ export const addressSchema = z.object({
   line1: z.string().min(4),
   city: z.string().min(2),
   state: z.string().min(2),
-  postalCode: z.string().regex(/^\d{6}$/),
-  phone: z.string().regex(/^\+?\d[\d\s-]{7,}$/),
+  postalCode: z
+    .string()
+    .regex(/^\d{6}$/)
+    .refine((v) => !/^(\d)\1{5}$/.test(v), "Enter a valid 6-digit PIN code"),
+  // Indian mobile number: 10 digits starting 6-9, with an optional +91/91/0
+  // prefix — spaces/dashes anywhere are stripped before matching.
+  phone: z.string().refine((v) => /^(?:\+?91|0)?[6-9]\d{9}$/.test(v.replace(/[\s-]/g, "")), "Enter a valid 10-digit mobile number"),
 });
 
 export const checkoutSchema = z.object({

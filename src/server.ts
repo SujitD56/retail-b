@@ -12,8 +12,18 @@ registerActivityLogSubscribers();
 const app = createApp();
 
 const server = app.listen(env.PORT, () => {
-  logger.info(`🚀 Ilkal Threads API listening on :${env.PORT} (${env.NODE_ENV})`);
+  logger.info(`🚀 Kaushaya API listening on :${env.PORT} (${env.NODE_ENV})`);
 });
+
+// Node's default keepAliveTimeout (5s) is shorter than the idle window
+// Next.js's server-side fetch() pool happily reuses a kept-alive socket
+// across — so this server would close the connection out from under it,
+// and the next reused-socket request would fail with ECONNRESET/"other
+// side closed". Matching it to a conventional reverse-proxy-length timeout
+// (headersTimeout must exceed keepAliveTimeout, per Node's own requirement)
+// gives pooled connections enough headroom to actually get reused.
+server.keepAliveTimeout = 65_000;
+server.headersTimeout = 66_000;
 
 async function shutdown(signal: string) {
   logger.info(`${signal} received, shutting down gracefully…`);

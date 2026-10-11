@@ -34,6 +34,8 @@ import { retailerStatsRouter } from "@/modules/retailers/retailer-stats.routes.j
 import { retailerCollectionsRouter } from "@/modules/retailers/retailer-collections.routes.js";
 import { cartRouter } from "@/modules/cart/cart.routes.js";
 import { wishlistRouter } from "@/modules/wishlist/wishlist.routes.js";
+import { addressesRouter } from "@/modules/addresses/addresses.routes.js";
+import { supportRouter } from "@/modules/support/support.routes.js";
 import { ordersRouter } from "@/modules/orders/orders.routes.js";
 import { eventsRouter } from "@/modules/events/events.routes.js";
 import { adminRouter } from "@/modules/admin/admin.routes.js";
@@ -131,6 +133,8 @@ export function createApp() {
   v1.use("/retailers", retailersRouter);
   v1.use("/cart", cartRouter);
   v1.use("/wishlist", wishlistRouter);
+  v1.use("/addresses", addressesRouter);
+  v1.use("/support", supportRouter);
   v1.use("/orders", ordersRouter);
   v1.use("/events", eventsRouter);
   v1.use("/admin", adminRouter);

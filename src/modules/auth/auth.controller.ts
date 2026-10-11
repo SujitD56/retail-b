@@ -4,7 +4,7 @@ import { env, isProd } from "@/config/env.js";
 import { BadRequestError, UnauthorizedError } from "@/lib/errors.js";
 import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "./auth.constants.js";
 import * as authService from "./auth.service.js";
-import { findUserById } from "./auth.repository.js";
+import { findUserByEmail, findUserByPhone, findUserById } from "./auth.repository.js";
 
 const baseCookieOpts = { httpOnly: true, secure: isProd, sameSite: "lax" as const, path: "/" };
 
@@ -17,6 +17,22 @@ function clearSessionCookies(res: Response) {
   res.clearCookie(ACCESS_TOKEN_COOKIE, baseCookieOpts);
   res.clearCookie(REFRESH_TOKEN_COOKIE, baseCookieOpts);
 }
+
+/** Lets a signup/registration form check an email before the user fills out the rest of a multi-step form, instead of only surfacing "already exists" after a full submit. Same information a failed signup attempt already reveals — just earlier. */
+export const checkEmail = asyncHandler(async (req: Request, res: Response) => {
+  const email = String(req.query.email ?? "").trim();
+  if (!email) throw new BadRequestError("email is required");
+  const existing = await findUserByEmail(email);
+  res.status(200).json({ available: !existing });
+});
+
+/** Same early-check as checkEmail, for phone. */
+export const checkPhone = asyncHandler(async (req: Request, res: Response) => {
+  const phone = String(req.query.phone ?? "").trim();
+  if (!phone) throw new BadRequestError("phone is required");
+  const existing = await findUserByPhone(phone);
+  res.status(200).json({ available: !existing });
+});
 
 export const signup = asyncHandler(async (req: Request, res: Response) => {
   const result = await authService.signup(req.body);
@@ -78,6 +94,12 @@ export const me = asyncHandler(async (req: Request, res: Response) => {
   const user = await findUserById(req.auth.userId);
   if (!user) throw new UnauthorizedError();
   res.status(200).json({ user: authService.toPublicUser(user) });
+});
+
+export const updateMe = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.auth) throw new UnauthorizedError();
+  const user = await authService.updateProfile(req.auth.userId, req.body);
+  res.status(200).json({ user });
 });
 
 export const forgotPassword = asyncHandler(async (req: Request, res: Response) => {

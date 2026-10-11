@@ -16,7 +16,9 @@ export const registerRetailerSchema = z.object({
   // Step 1 — account
   fullName: z.string().min(2),
   email: z.string().email(),
-  mobile: z.string().regex(/^\d{10}$/),
+  // Indian mobile number: 10 digits starting 6-9, with an optional +91/91/0
+  // prefix — spaces/dashes anywhere are stripped before matching.
+  mobile: z.string().refine((v) => /^(?:\+?91|0)?[6-9]\d{9}$/.test(v.replace(/[\s-]/g, "")), "Enter a valid 10-digit mobile number"),
   password: z.string().min(8),
   // Step 2 — store profile
   storeName: z.string().min(2),
@@ -24,7 +26,10 @@ export const registerRetailerSchema = z.object({
   primaryCategory: weaveTypeEnum,
   city: z.string().min(2),
   state: z.string().min(1),
-  pincode: z.string().regex(/^\d{6}$/),
+  pincode: z
+    .string()
+    .regex(/^\d{6}$/)
+    .refine((v) => !/^(\d)\1{5}$/.test(v), "Enter a valid 6-digit PIN code"),
   // Step 3 — business/tax details
   registrationType: z.string().min(1),
   gstin: z.string().optional(),

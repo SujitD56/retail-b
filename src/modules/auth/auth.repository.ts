@@ -6,12 +6,22 @@ export function findUserByEmail(email: string) {
   return prisma.user.findUnique({ where: { email: email.toLowerCase() } });
 }
 
+// phone isn't a unique DB column (it's optional and Address also has its
+// own unrelated phone field), so this is a plain lookup, not findUnique.
+export function findUserByPhone(phone: string) {
+  return prisma.user.findFirst({ where: { phone } });
+}
+
 export function findUserById(id: string) {
   return prisma.user.findUnique({ where: { id } });
 }
 
-export function createUser(data: { name: string; email: string; passwordHash: string; role: Role }) {
+export function createUser(data: { name: string; email: string; phone?: string; passwordHash: string; role: Role }) {
   return prisma.user.create({ data: { ...data, email: data.email.toLowerCase() } });
+}
+
+export function updateProfile(userId: string, data: { name: string; phone?: string }) {
+  return prisma.user.update({ where: { id: userId }, data });
 }
 
 export function updatePasswordHash(userId: string, passwordHash: string) {

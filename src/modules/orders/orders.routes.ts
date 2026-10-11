@@ -21,3 +21,4 @@ ordersRouter.get("/admin", requireAuth, requireRole("ADMIN"), controller.listFor
 ordersRouter.patch("/admin/:id/status", requireAuth, requireRole("ADMIN"), validate(updateOrderStatusSchema), controller.updateStatusAdmin);
 
 ordersRouter.get("/:orderNumber", optionalAuth, controller.getOne);
+ordersRouter.get("/:orderNumber/invoice", optionalAuth, controller.getInvoice);
