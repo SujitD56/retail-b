@@ -73,6 +73,8 @@ export async function register(input: RegisterRetailerInput) {
         pincode: input.pincode,
         specialties: [WEAVE_TYPE_FROM_LABEL[input.primaryCategory]!],
         status: "PENDING",
+        logoUrl: input.logoUrl,
+        coverUrl: input.coverUrl,
         registrationType: input.registrationType,
         gstin: input.gstin,
         gstExempt: input.gstExempt ?? false,

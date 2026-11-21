@@ -29,14 +29,14 @@ const EXTENSION_BY_CONTENT_TYPE: Record<string, string> = {
  * production build would want a periodic sweep for Asset rows whose S3 key
  * never received an upload (e.g. via S3 event notifications or a TTL check).
  */
-export async function presignUpload(userId: string, input: PresignInput) {
+export async function presignUpload(userId: string | undefined, input: PresignInput) {
   const folder = FOLDER_BY_PURPOSE[input.purpose as AssetPurpose];
   const extension = EXTENSION_BY_CONTENT_TYPE[input.contentType] ?? "jpg";
 
   const { uploadUrl, key, publicUrl } = await createPresignedUploadUrl({ folder, contentType: input.contentType, extension });
 
   await prisma.asset.create({
-    data: { key, url: publicUrl, purpose: input.purpose as AssetPurpose, uploadedByUserId: userId },
+    data: { key, url: publicUrl, purpose: input.purpose as AssetPurpose, uploadedByUserId: userId ?? null },
   });
 
   return { uploadUrl, publicUrl, key };

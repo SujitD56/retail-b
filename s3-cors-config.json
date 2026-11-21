@@ -3,7 +3,7 @@
     {
       "AllowedHeaders": ["*"],
       "AllowedMethods": ["PUT", "POST", "GET", "DELETE", "HEAD"],
-      "AllowedOrigins": ["http://localhost:3000", "http://127.0.0.1:3000"],
+      "AllowedOrigins": ["http://localhost:3000", "http://127.0.0.1:3000", "https://kaushaya.com", "https://www.kaushaya.com"],
       "ExposeHeaders": ["ETag"],
       "MaxAgeSeconds": 3000
     }

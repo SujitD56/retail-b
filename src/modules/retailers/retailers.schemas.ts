@@ -30,6 +30,8 @@ export const registerRetailerSchema = z.object({
     .string()
     .regex(/^\d{6}$/)
     .refine((v) => !/^(\d)\1{5}$/.test(v), "Enter a valid 6-digit PIN code"),
+  logoUrl: z.string().url().optional(),
+  coverUrl: z.string().url().optional(),
   // Step 3 — business/tax details
   registrationType: z.string().min(1),
   gstin: z.string().optional(),
